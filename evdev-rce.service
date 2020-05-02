@@ -1,0 +1,12 @@
+[Unit]
+Description=Enable right-click emulation on touchscreen
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/evdev-rce
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
