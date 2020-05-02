@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# This script builds a debian package for evdev-rce.
+# It should be run at the root of the evdev-rce repo.
+#
+# Dependencies:
+#   - dpkg-dev
+#   - libevdev-dev
+#   - gcc
+
+set -e
+
+if ! command -V dpkg-deb > /dev/null 2>&1; then
+    echo "Error: dpkg-deb command missing" >&2
+    exit 1
+fi
+
+if ! command -V dpkg-architecture > /dev/null 2>&1; then
+    echo "Error: dpkg-architecture command missing" >&2
+    exit 1
+fi
+
+_usage="Usage: $0 [-h] VERSION"
+_help="${_usage}
+
+  Create a debian package for evdev-rce at version VERSION.
+
+Options:
+  -h                    show this help text and exit."
+
+while getopts ':h' option; do
+    case "$option" in
+        h)
+            echo "${_help}"
+            exit 0
+            ;;
+        \?) ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+if [ $# -ne 1 ]
+then
+    echo "Error: $0 takes 1 positional argument, but $# given." >&2
+    echo "${_usage}" >&2
+    exit 1
+fi
+
+VER=$1
+DEB_BUILD_ARCH=$(dpkg-architecture -q DEB_BUILD_ARCH)
+
+PKG=evdev-rce
+PKG_NAME=${PKG}_${VER}_${DEB_BUILD_ARCH}
+PKG_DIR=debian/${PKG_NAME}
+BIN_DIR=${PKG_DIR}/usr/bin
+DOC_DIR=${PKG_DIR}/usr/share/doc/evdev-rce
+SYSD_DIR=${PKG_DIR}/etc/systemd/system
+
+mkdir -pv "${PKG_DIR}"
+mkdir -pv "${BIN_DIR}"
+mkdir -pv "${DOC_DIR}"
+mkdir -pv "${SYSD_DIR}"
+
+# Compile evdev-rce
+make all
+
+# Copy file in root structure
+cp -v out/evdev-rce ${BIN_DIR}
+cp -v evdev-rce.service ${SYSD_DIR}
+cp -v README.md ${DOC_DIR}
+cp -v LICENSE ${DOC_DIR}
+
+# Create copyright file
+cat > ${DOC_DIR}/copyright << EOL
+Upstream Name: ${PKG}
+Source: https://github.com/PeterCxy/evdev-right-click-emulation
+Copyright: Peter Cai <peter@typeblog.net>
+License: WTFPL
+EOL
+
+# Create control file
+mkdir -pv "${PKG_DIR}/DEBIAN"
+cat > "${PKG_DIR}/DEBIAN/control" << EOL
+Package: ${PKG}
+Version: ${VER}
+Architecture: ${DEB_BUILD_ARCH}
+Vcs-Browser: https://github.com/PeterCxy/evdev-right-click-emulation
+Vcs-Git: https://github.com/PeterCxy/evdev-right-click-emulation
+Homepage: https://github.com/PeterCxy/evdev-right-click-emulation
+Section: x11
+Priority: optional
+Maintainer: Rémy Taymans <remytms@gmail.com>
+Depends:
+Description: ${PKG} is program that emulates right-click on touchscreen
+ when longpressing the screen. It runs as a daemon.
+EOL
+
+dpkg-deb --build "${PKG_DIR}"
+
+# Clean up
+rm -rf out
+rm -rf "${PKG_DIR}"
+
+exit 0
